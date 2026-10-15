@@ -1,6 +1,11 @@
 import time
 import threading
-from pynput import mouse, keyboard
+try:
+    from pynput import keyboard, mouse
+    PYNPUT_AVAILABLE = True
+except Exception:
+    keyboard = mouse = None
+    PYNPUT_AVAILABLE = False
 import logging
 
 # Configure logging
