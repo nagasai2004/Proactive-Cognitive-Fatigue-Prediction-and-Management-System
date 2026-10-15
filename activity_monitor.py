@@ -112,23 +112,47 @@ class ActivityMonitor:
         self.running = True
         self.callback = callback
         
-        # Start input listeners
-        self.mouse_listener = mouse.Listener(on_move=self._on_move, on_click=self._on_click)
-        self.keyboard_listener = keyboard.Listener(on_press=self._on_press)
-        
-        self.mouse_listener.start()
-        self.keyboard_listener.start()
+        # Start input listeners if pynput is available
+        if PYNPUT_AVAILABLE and mouse is not None and keyboard is not None:
+            try:
+                self.mouse_listener = mouse.Listener(on_move=self._on_move, on_click=self._on_click)
+                self.keyboard_listener = keyboard.Listener(on_press=self._on_press)
+
+                self.mouse_listener.start()
+                self.keyboard_listener.start()
+
+                logging.info("pynput listeners started for activity monitoring.")
+            except Exception as e:
+                logging.error(f"Failed to start pynput listeners: {e}")
+                self.mouse_listener = None
+                self.keyboard_listener = None
+        else:
+            # Running in headless/server environment (e.g., Streamlit Cloud) where pynput
+            # cannot access OS-level input devices. Continue running the aggregator threads
+            # but without real input listeners so the app doesn't crash on start().
+            logging.warning("pynput not available; running ActivityMonitor in headless mode (no input listeners).")
+            self.mouse_listener = None
+            self.keyboard_listener = None
         
         # Start background threads
         threading.Thread(target=self._monitor_idle, daemon=True).start()
         threading.Thread(target=self._aggregation_loop, daemon=True).start()
         
-        logging.info("Activity Monitoring Started (Interval: 60s).")
+        logging.info(f"Activity Monitoring Started (Interval: {self.interval}s).")
 
     def stop(self):
         self.running = False
-        self.mouse_listener.stop()
-        self.keyboard_listener.stop()
+        # Stop listeners if they were created
+        try:
+            if hasattr(self, 'mouse_listener') and self.mouse_listener:
+                self.mouse_listener.stop()
+        except Exception as e:
+            logging.error(f"Error stopping mouse listener: {e}")
+        try:
+            if hasattr(self, 'keyboard_listener') and self.keyboard_listener:
+                self.keyboard_listener.stop()
+        except Exception as e:
+            logging.error(f"Error stopping keyboard listener: {e}")
         logging.info("Activity Monitoring Stopped.")
 
     def get_latest_stats(self):
