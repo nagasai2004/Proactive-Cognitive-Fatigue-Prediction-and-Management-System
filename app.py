@@ -6,7 +6,13 @@ import numpy as np
 from datetime import datetime
 import plotly.graph_objects as go
 import plotly.express as px
-from plyer import notification
+try:
+    from plyer import notification
+except Exception:
+    class notification:  # no-op stand-in when running on a server
+        @staticmethod
+        def notify(*args, **kwargs):
+            pass
 import io
 
 from activity_monitor import ActivityMonitor
