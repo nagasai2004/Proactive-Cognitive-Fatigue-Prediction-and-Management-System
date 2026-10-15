@@ -1,10 +1,15 @@
 import time
 import threading
 try:
+    # Import the concrete Listener classes when possible to validate availability
     from pynput import keyboard, mouse
+    from pynput.mouse import Listener as MouseListener
+    from pynput.keyboard import Listener as KeyListener
     PYNPUT_AVAILABLE = True
 except Exception:
+    # Either pynput isn't installed or platform/backend not available
     keyboard = mouse = None
+    MouseListener = KeyListener = None
     PYNPUT_AVAILABLE = False
 import logging
 
@@ -27,6 +32,7 @@ class ActivityMonitor:
         self.start_time = time.time()
         
         self.running = False
+        self.callback = None
         self.current_stats = {
             'keystrokes': 0,
             'mouse_moves': 0,
@@ -112,9 +118,10 @@ class ActivityMonitor:
         self.running = True
         self.callback = callback
         
-        # Start input listeners if pynput is available
-        if PYNPUT_AVAILABLE and mouse is not None and keyboard is not None:
+        # Start input listeners if pynput is available and listeners resolved
+        if PYNPUT_AVAILABLE and mouse is not None and keyboard is not None and hasattr(mouse, "Listener") and hasattr(keyboard, "Listener"):
             try:
+                # Attempt to create listeners; this may fail on headless servers or platforms without required backends
                 self.mouse_listener = mouse.Listener(on_move=self._on_move, on_click=self._on_click)
                 self.keyboard_listener = keyboard.Listener(on_press=self._on_press)
 
@@ -124,17 +131,18 @@ class ActivityMonitor:
                 logging.info("pynput listeners started for activity monitoring.")
             except Exception as e:
                 logging.error(f"Failed to start pynput listeners: {e}")
+                # Fall back to headless mode; don't crash the application
                 self.mouse_listener = None
                 self.keyboard_listener = None
+                logging.warning("Falling back to headless mode (no input listeners).")
         else:
             # Running in headless/server environment (e.g., Streamlit Cloud) where pynput
-            # cannot access OS-level input devices. Continue running the aggregator threads
-            # but without real input listeners so the app doesn't crash on start().
-            logging.warning("pynput not available; running ActivityMonitor in headless mode (no input listeners).")
+            # cannot access OS-level input devices or Listener class isn't available.
+            logging.warning("pynput not available or listener classes missing; running ActivityMonitor in headless mode (no input listeners).")
             self.mouse_listener = None
             self.keyboard_listener = None
-        
-        # Start background threads
+
+        # Start background threads regardless (they use the counters; listeners are optional)
         threading.Thread(target=self._monitor_idle, daemon=True).start()
         threading.Thread(target=self._aggregation_loop, daemon=True).start()
         

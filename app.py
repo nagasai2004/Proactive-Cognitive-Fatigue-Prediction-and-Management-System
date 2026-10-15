@@ -6,6 +6,7 @@ import numpy as np
 from datetime import datetime
 import plotly.graph_objects as go
 import plotly.express as px
+import logging
 try:
     from plyer import notification
 except Exception:
@@ -176,7 +177,14 @@ def get_monitor():
             background_logging_worker.high_alert_tripped = False
 
     monitor = ActivityMonitor(interval=60)
-    monitor.start(callback=background_logging_worker)
+    try:
+        monitor.start(callback=background_logging_worker)
+    except Exception as e:
+        logging.error(f"ActivityMonitor.start() raised an exception: {e}")
+        try:
+            monitor.running = False
+        except:
+            pass
     return monitor
 
 @st.cache_resource
